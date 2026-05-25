@@ -1,0 +1,40 @@
+# nacho 설정 예시 — `nacho init` 으로 자동 생성 권장.
+#
+# 수동 작성:
+#   mkdir -p ~/.config/nacho && cp config.example.yaml ~/.config/nacho/config.yaml
+#   (그 후 본인 환경에 맞춰 fields / defaults / status_categories 채우기)
+#
+# 인증은 별도 파일: ~/.config/nacho/credentials.json (chmod 0600)
+#   {"token": "secret_..."}
+
+notion:
+  # 노션 DB URL 의 32자 hex 또는 8-4-4-4-12 UUID
+  database_id: ""
+
+  # nacho 내부 키 → 실제 노션 DB property 이름 매핑.
+  # `nacho init` 이 DB schema 조회해서 자동 매핑 시도.
+  # 매핑 없는 (빈 문자열) 키는 해당 기능 비활성.
+  fields:
+    title: ""           # title 타입 (필수)
+    status: ""          # status 타입 (선택)
+    category: ""        # select 타입 (선택)
+    project: ""         # select 타입 (선택)
+    assignee: ""        # multi_select 타입 (선택)
+    start_date: ""      # date 타입 (선택)
+    due_date: ""        # date 타입 (선택)
+    link: ""            # url 타입 (선택)
+    session_id: ""      # rich_text — Claude 세션 ID 자동 캡처 (선택)
+    status_note: ""     # rich_text — 진행 일지 마지막 줄 sync (선택)
+
+  defaults:
+    status: ""          # 새 행의 기본 상태
+    assignee: ""        # 새 행의 기본 담당자
+
+  # 활성 상태로 간주할 status 옵션들 (`nacho list --active` / `nacho brief`).
+  # `nacho init` 이 Notion status group (To-do/In progress/Complete) 으로 자동 분류.
+  status_categories:
+    active: []
+    inactive: []
+
+# 생성된 페이지 URL 을 시스템 클립보드에 자동 복사
+auto_copy_url: true
