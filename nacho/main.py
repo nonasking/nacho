@@ -522,6 +522,14 @@ def run() -> None:
     p_new.add_argument("--body")
     p_new.add_argument("--session-id", dest="session_id",
                        help="Claude 세션 ID (지정 안 하면 SessionStart hook 파일에서 자동)")
+    p_new.add_argument(
+        "--no-prompt", dest="no_prompt", action="store_true",
+        help="대화형 프롬프트 끄기 — 안 준 인자는 빈 필드로 생성 (제목만 필수)",
+    )
+    p_new.add_argument(
+        "--require-session", dest="require_session", action="store_true",
+        help="session_id 필수화 — 못 찾으면 에러 (Claude Code 경로용)",
+    )
     p_new.add_argument("--yes", "-y", action="store_true")
     p_new.set_defaults(func=cmd_new)
 
