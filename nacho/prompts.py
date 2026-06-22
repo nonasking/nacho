@@ -143,23 +143,17 @@ def _resolve_link(cli_value: str | None) -> str:
 
 
 def collect_new_page(cfg: dict, args, db_schema: dict) -> dict:
-    """`nacho new` 입력 수집.
-
-    기본은 인터랙티브 마법사. `--no-prompt` 면 `input()` 을 일절 띄우지 않고
-    CLI 인자로 받은 값만 사용 — 안 준 항목은 빈 필드로 둔다 (제목만 필수).
-    `--require-session` 이면 session_id 가 없을 때 에러 (Claude Code 경로용).
-    """
+    """`nacho new` 인터랙티브. CLI 인자로 미리 받은 값도 schema 옵션으로 검증."""
     n = cfg["notion"]
     f = n["fields"]
     defaults = n.get("defaults", {})
-    no_prompt = getattr(args, "no_prompt", False)
 
     data: dict = {}
 
     # 제목 (필수, 자유 입력)
-    data["title"] = (args.title or "").strip() if no_prompt else (args.title or _ask("제목"))
+    data["title"] = args.title or _ask("제목")
     if not data["title"]:
-        raise ValueError("제목은 필수입니다." + (" (--no-prompt 모드: --title 명시)" if no_prompt else ""))
+        raise ValueError("제목은 필수입니다.")
 
     # 분류 / 프로젝트 / 상태 — select & status (매핑 없으면 건너뜀)
     for key, label in [
@@ -175,8 +169,6 @@ def collect_new_page(cfg: dict, args, db_schema: dict) -> dict:
         default = defaults.get(key, "") if key == "status" else ""
         if cli_val:
             data[key] = _resolve_one(label, cli_val, options) if options else cli_val
-        elif no_prompt:
-            data[key] = ""  # 안 준 인자는 빈 필드
         else:
             data[key] = _ask_enum(label, options, default=default)
 
@@ -189,8 +181,6 @@ def collect_new_page(cfg: dict, args, db_schema: dict) -> dict:
                 _resolve_one("담당자", a, assignee_opts) if assignee_opts else a
                 for a in items
             ]
-        elif no_prompt:
-            data["assignee"] = []  # 안 준 인자는 빈 필드
         else:
             data["assignee"] = _ask_multi_enum(
                 "담당자", assignee_opts, default=defaults.get("assignee", "")
@@ -198,36 +188,21 @@ def collect_new_page(cfg: dict, args, db_schema: dict) -> dict:
 
     # 날짜 / 링크 (각 필드 매핑된 경우만)
     if f.get("start_date"):
-        if no_prompt:
-            data["start_date"] = _parse_date(args.start_date or "")
-        else:
-            data["start_date"] = _parse_date(args.start_date or _ask("시작일 (오늘/내일/YYYY-MM-DD)"))
+        data["start_date"] = _parse_date(args.start_date or _ask("시작일 (오늘/내일/YYYY-MM-DD)"))
     if f.get("due_date"):
-        if no_prompt:
-            data["due_date"] = _parse_date(args.due_date or "")
-        else:
-            data["due_date"] = _parse_date(args.due_date or _ask("마감일 (오늘/내일/YYYY-MM-DD)"))
-    if f.get("link"):
-        # no_prompt 면 명시한 인자만 사용 (클립보드 'auto' 는 허용, 빈 입력 프롬프트는 생략)
-        data["link"] = _resolve_link(args.link) if (args.link or not no_prompt) else ""
-    else:
-        data["link"] = ""
+        data["due_date"] = _parse_date(args.due_date or _ask("마감일 (오늘/내일/YYYY-MM-DD)"))
+    data["link"] = _resolve_link(args.link) if f.get("link") else ""
 
     # 본문
     if args.body:
         data["body"] = args.body
-    elif not no_prompt:
+    else:
         ans = input("본문 추가? (y/N): ").strip().lower()
         if ans == "y":
             data["body"] = _read_multiline("본문 (마크다운)")
 
     # Session ID 자동 캡처 (CLI 인자 우선, 없으면 SessionStart hook 이 기록한 파일)
     session_id = getattr(args, "session_id", None) or ses.get_current_session_id()
-    if getattr(args, "require_session", False) and not session_id:
-        raise ValueError(
-            "session_id 가 필수입니다 (--require-session). "
-            "Claude Code 세션 밖이거나 hook 이 기록 안 됨 — --session-id 로 명시하세요."
-        )
     session_section = ses.build_session_section(session_id) if session_id else ""
     if session_id:
         data["session_id"] = session_id

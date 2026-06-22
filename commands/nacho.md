@@ -12,10 +12,8 @@ description: 노션 DB 에 새 행 추가 — 세션 컨텍스트 자동 요약
    - **마감일 / 시작일**: 자연어 ("내일까지", "다음주 금요일", "2026-06-15") 또는 명시
    - **링크**: URL 형태로 보이면 그대로
    - **본문**(`--body`, 선택): 마크다운으로 상세 (배경 / 작업 내용 / 완료 조건)
-2. 사용자에게 미리보기 (`nacho new --yes --no-prompt --require-session --title ... --category ...` 형태) 출력 + 확인 받기
-3. OK 면 `nacho new --yes --no-prompt --require-session ...` 셸 실행
-   - `--no-prompt`: 대화형 질문 없이 **명시한 인자만 채우고 나머지는 빈 필드** (제목만 필수)
-   - `--require-session`: session_id 필수 — Claude Code 세션 밖이면 에러 (nacho 가 hook 파일에서 자동으로 읽음)
+2. 사용자에게 미리보기 (`nacho new --yes --title ... --category ...` 형태) 출력 + 확인 받기
+3. OK 면 `nacho new --yes ...` 셸 실행
 
 ## 사용 예
 
@@ -39,5 +37,5 @@ description: 노션 DB 에 새 행 추가 — 세션 컨텍스트 자동 요약
 
 ## 비고
 
-- `--no-prompt` 로 `nacho new` 의 대화형 입력을 끄고, Claude 가 추출한 인자만 명시적으로 전달한다 (안 준 항목은 빈 필드).
-- 세션 컨텍스트 없이 그냥 `/nacho` 빈 호출이면 인터랙티브 마법사(`nacho new`) 안내.
+- v1 은 `nacho new` 인터랙티브를 자동화로 우회. 본격 자동화는 `--yes` 직접 실행.
+- 세션 컨텍스트 없이 그냥 `/nacho` 빈 호출이면 인터랙티브 마법사 안내.

@@ -1,124 +1,124 @@
 # nacho
 
-노션 데이터베이스를 셸 / Claude Code 슬래시 커맨드로 다루는 자동화 도구.
-업무 트래킹용 노션 DB 에 새 행 추가, 진행 일지 누적, 일별 브리핑, Claude 세션 ID 자동 캡처.
+An automation tool for driving a Notion database from the shell or Claude Code slash commands.
+Adds new rows to a work-tracking Notion DB, accumulates a progress log, generates a daily briefing, and auto-captures the Claude session ID.
 
-## 사전 요구사항
+## Prerequisites
 
 - macOS / Linux
 - Python ≥ 3.10
-- Notion **Internal Integration** ([my-integrations](https://www.notion.so/my-integrations))
-- 사용할 노션 DB 의 ... 메뉴 → Connections 에 위 Integration 추가
-- 선택: [Claude Code](https://docs.anthropic.com/claude-code) — 슬래시 커맨드 / 세션 컨텍스트 모드 쓸 때만
+- A Notion **Internal Integration** ([my-integrations](https://www.notion.so/my-integrations))
+- Add that Integration under the target Notion DB's ... menu → Connections
+- Optional: [Claude Code](https://docs.anthropic.com/claude-code) — only if you use the slash commands / session-context mode
 
-## 설치
+## Install
 
 ```bash
 git clone <repo-url> nacho && cd nacho
 
-# 격리된 venv 권장
+# isolated venv recommended
 python3 -m venv .venv
 .venv/bin/pip install -e .
 
-# 어디서든 호출 가능하게 (선택)
+# make it callable from anywhere (optional)
 mkdir -p ~/.local/bin
 ln -sf "$PWD/.venv/bin/nacho" ~/.local/bin/nacho
 ```
 
-## 첫 실행
+## First run
 
 ```bash
 nacho init
 ```
 
-마법사가 차례로 묻는다:
+The wizard asks, in order:
 
-1. **Notion Integration Token** (getpass — 화면에 안 보임)
-2. **DB URL** — DB 페이지 우상단 Share → Copy link
-3. **DB schema 조회** + **필드 자동 매핑** (한·영 패턴 휴리스틱)
-4. **status 자동 분류** (Notion status group 활용 — To-do/In progress = active, Complete = inactive)
-5. **기본값** (status, assignee)
+1. **Notion Integration Token** (getpass — hidden on screen)
+2. **DB URL** — top-right of the DB page → Share → Copy link
+3. **DB schema lookup** + **automatic field mapping** (Korean/English pattern heuristics)
+4. **Automatic status classification** (using Notion status groups — To-do/In progress = active, Complete = inactive)
+5. **Defaults** (status, assignee)
 
-결과:
-- `~/.config/nacho/config.yaml` — DB ID, 필드 매핑, 기본값
+Result:
+- `~/.config/nacho/config.yaml` — DB ID, field mappings, defaults
 - `~/.config/nacho/credentials.json` — token (chmod 0600)
 
-수동 작성하려면 [`config.example.yaml`](./config.example.yaml) 참고.
+To write it by hand, see [`config.example.yaml`](./config.example.yaml).
 
-## 사용 — 셸에서 직접
+## Usage — directly from the shell
 
-### 새 행 생성
+### Create a new row
 
 ```bash
-# 인터랙티브 (권장) — 본인 DB 의 옵션이 동적으로 메뉴로 나옴
+# interactive (recommended) — your DB's options show up as a dynamic menu
 nacho new
 
-# 인자 미리 지정 + 확인 단계 건너뛰기
+# pre-specify args + skip the confirmation step
 nacho new \
-  --title "정렬 깨짐 버그" \
+  --title "sort-rendering bug" \
   --category 운영 \
   --project "Project A" \
   --link https://example.atlassian.net/browse/KEY-123 \
   --yes
 ```
 
-- 매핑 안 된 필드 (`config.yaml` 에 비어있는 키) 는 prompt 도 안 함 → 본인 DB 구조에 맞게 작동
-- 옵션 값은 DB schema 의 실제 옵션만 허용 (자유 입력 거부)
-- `--link auto` → 시스템 클립보드에서 URL 자동 추출
-- `--session-id` 미지정 시 `~/.cache/nacho/current-session` 에서 자동 (Claude Code SessionStart hook 셋업 필요 — 아래 참고)
+- Unmapped fields (keys left empty in `config.yaml`) aren't even prompted → it adapts to your DB structure.
+- Option values only accept the actual options from the DB schema (free-form input is rejected).
+- `--link auto` → extracts a URL from the system clipboard automatically.
+- When `--session-id` is omitted, it's read from `~/.cache/nacho/current-session` automatically (requires the Claude Code SessionStart hook — see below).
 
-### 행 조회
-
-```bash
-nacho list --active                    # 활성 상태만 (status_categories.active)
-nacho list --status "진행 중"           # 특정 상태
-nacho list --json                      # 자동화·LLM 용
-```
-
-### 진행 일지 (현황 메모) 추가
+### List rows
 
 ```bash
-nacho note "큐레이션" "스테이징 모니터링 후 배포 예정"
+nacho list --active                    # active statuses only (status_categories.active)
+nacho list --status "진행 중"           # a specific status
+nacho list --json                      # for automation / LLMs
 ```
-- DB 행의 본문 `## 진행 일지` 섹션에 `- YYYY-MM-DD HH:MM: 메모` append
-- 동시에 `status_note` 필드 (예: "현황 요약") 를 그 메모로 덮어쓰기 → DB list view 의 한 컬럼으로 한 눈에
 
-### 브리핑
+### Add a progress-log entry (status note)
 
 ```bash
-nacho brief                                          # stdout 으로
-nacho brief --to-file ~/Desktop/today-brief.md       # 파일 저장
+nacho note "curation" "monitoring on staging, deploy to follow"
 ```
-- 마감 임박 (~7일) / 진행 중 / 대기·보류 그룹으로 정리
-- 각 행마다 `[프로젝트]` prefix + `status_note` 현황 메모 표시
+- Appends `- YYYY-MM-DD HH:MM: note` to the row body's `## 진행 일지` (progress log) section.
+- Simultaneously overwrites the `status_note` field (e.g. "status summary") with that note → visible at a glance as one column in the DB list view.
 
-### 세션 재개
+### Briefing
 
 ```bash
-nacho resume "큐레이션"          # 해당 행의 session_id → 'claude --resume <id>' 출력
-nacho resume "큐레이션" --exec   # 직접 claude --resume 실행
+nacho brief                                          # to stdout
+nacho brief --to-file ~/Desktop/today-brief.md       # save to file
+```
+- Organized into due-soon (~7 days) / in-progress / waiting·on-hold groups.
+- Each row shows a `[project]` prefix + the `status_note` status memo.
+
+### Resume a session
+
+```bash
+nacho resume "curation"          # prints 'claude --resume <id>' for that row's session_id
+nacho resume "curation" --exec   # runs claude --resume directly
 ```
 
-## 사용 — Claude Code 슬래시 커맨드
+## Usage — Claude Code slash commands
 
 ```bash
 ./install.sh
 ```
-→ `~/.claude/commands/` 에 심볼릭 링크 등록.
+→ registers symlinks in `~/.claude/commands/`.
 
-세 가지 슬래시:
+Three slash commands:
 
-| 슬래시 | 용도 | 가공 정도 |
+| Slash | Purpose | Processing |
 |---|---|---|
-| `/nacho` | 새 행 생성 (세션 컨텍스트 자동 요약) | 풀 자동 — 본문 LLM 작성 |
-| `/nacho-quick` | 새 행 생성 (사용자 명시만, session_id 만 자동) | 본문 가공 X (보안 우선) |
-| `/nacho-note` | 기존 행에 메모 한 줄 + 현황 요약 갱신 | 듀얼 모드 |
+| `/nacho` | create a new row (auto-summarizes session context) | full auto — body written by the LLM |
+| `/nacho-quick` | create a new row (user-stated only, just auto session_id) | no body processing (security-first) |
+| `/nacho-note` | add a one-line note to an existing row + refresh the status summary | dual mode |
 
-각 슬래시의 동작·안전 가드는 `commands/*.md` 참고.
+See `commands/*.md` for each slash command's behavior and safety guards.
 
-## SessionStart hook (선택) — Claude 세션 ID 자동 캡처
+## SessionStart hook (optional) — auto-capture the Claude session ID
 
-`~/.claude/settings.json` 의 SessionStart hook 배열에 추가:
+Add to the SessionStart hook array in `~/.claude/settings.json`:
 
 ```json
 {
@@ -127,61 +127,57 @@ nacho resume "큐레이션" --exec   # 직접 claude --resume 실행
 }
 ```
 
-→ Claude Code 세션 시작 시 session_id 가 파일에 기록. 이후 `nacho new` 가 자동으로 본문 `## Session` 섹션에 삽입.
+→ The session_id is written to a file when a Claude Code session starts. `nacho new` then inserts it into the body's `## Session` section automatically.
 
-## 설계 — 왜 Notion MCP 가 아니라 CLI + 얇은 스킬인가
+## Design — why a CLI + thin skill instead of the Notion MCP
 
-(oobs · tako 와 공통 설계 원칙)
+(A shared design principle with oobs · tako.)
 
-MCP 의 컨텍스트 비용은 호출이 아니라 **상주**에서 나간다. 공식 Notion MCP 를 붙이면 도구
-20개 안팎의 스키마가 모든 세션의 시스템 프롬프트에 실려, *노션을 안 쓰는 세션에서도*
-수천~만 토큰을 차지할 수 있다. nacho 는 그 상주 비용을 호출 시점 비용으로 바꾼 구조다:
+MCP's context cost comes not from calls but from **residency**. Attach the official Notion MCP and ~20 tool schemas ride in the system prompt of *every* session — taking thousands to tens of thousands of tokens *even in sessions that never touch Notion*. nacho converts that residency cost into a per-call cost:
 
-- **상주 비용**: 스킬 설명 한 줄(수십 토큰)뿐. 사용법은 `/nacho` 호출 순간에만 로드
-- 호출당 비용은 MCP 와 비슷 — 절약분은 전적으로 상주 스키마
-- **세션 밖 셸 직접 호출 = 토큰 0** (보안 메모의 audit 우회와도 일치) + 결정적 동작
+- **Residency cost**: just one line of skill description (tens of tokens). Usage loads only at the moment `/nacho` is invoked.
+- Per-call cost is similar to MCP — the savings are entirely in the resident schemas.
+- **Direct shell calls outside a session = 0 tokens** (also consistent with the audit-bypass in the Security notes) + deterministic behavior.
 
-정직한 트레이드오프:
+Honest trade-offs:
 
-- 최신 Claude Code 는 MCP 도구를 지연 로딩(ToolSearch)하므로 상주 격차가 예전만큼 크지 않다
-- MCP 가 이기는 지점 — 타입 스키마로 잘못된 호출 감소, 인증을 서버가 관리, 그리고
-  **벤더 유지보수**: Notion API 가 바뀌면 nacho 는 직접 고쳐야 한다. 필드 매핑을 설정에
-  직접 등록하는 것도 MCP 의 런타임 조회 대비 수동 비용
+- Recent Claude Code lazy-loads MCP tools (ToolSearch), so the residency gap is smaller than it used to be.
+- Where MCP wins — typed schemas reduce malformed calls, the server manages auth, and **vendor maintenance**: when the Notion API changes, nacho has to be fixed by hand. Registering field mappings directly in config is also a manual cost versus the MCP's runtime lookup.
 
-## 보안 메모
+## Security notes
 
-- 토큰은 `~/.config/nacho/credentials.json` 에 평문 저장 (chmod 0600).
-- `Claude Code` 안에서 nacho 를 호출하면 명령 + 인자 + 결과가 Anthropic API 응답에 포함될 수 있음 → 회사 Team Plan 등에서 audit 우려 있으면 **cmux 다른 패널에서 셸 직접 호출** 권장.
-- `/nacho-quick` 은 본문 LLM 가공을 막아 노출을 줄이지만, 슬래시 호출 자체는 audit log 에 잡힘 — 가장 안전한 건 Claude Code 우회.
+- The token is stored in plaintext at `~/.config/nacho/credentials.json` (chmod 0600).
+- Calling nacho from inside Claude Code means the command + args + result may end up in the Anthropic API response → if you have audit concerns (e.g. a corporate Team Plan), prefer **calling the shell directly in a separate cmux panel**.
+- `/nacho-quick` reduces exposure by blocking LLM processing of the body, but the slash invocation itself still shows up in the audit log — the safest option is to bypass Claude Code.
 
-## 디렉토리
+## Directory
 
 ```
 nacho/
 ├── commands/
-│   ├── nacho.md             /nacho 슬래시
-│   ├── nacho-quick.md       /nacho-quick 슬래시
-│   └── nacho-note.md        /nacho-note 슬래시
-├── nacho/                   Python 패키지
-│   ├── auth.py              credentials 로드
-│   ├── notion_client.py     REST 진입점
-│   ├── page_draft.py        properties 빌더 + 미리보기
-│   ├── prompts.py           인터랙티브 입력
-│   ├── schema.py            DB schema 옵션 추출
+│   ├── nacho.md             /nacho slash command
+│   ├── nacho-quick.md       /nacho-quick slash command
+│   └── nacho-note.md        /nacho-note slash command
+├── nacho/                   Python package
+│   ├── auth.py              credentials loader
+│   ├── notion_client.py     REST entry point
+│   ├── page_draft.py        properties builder + preview
+│   ├── prompts.py           interactive input
+│   ├── schema.py            DB schema option extraction
 │   ├── session.py           Claude session id
-│   ├── progress.py          진행 일지 섹션
-│   ├── clipboard.py         클립보드 URL 추출
-│   ├── config.py            설정 + init 마법사
-│   └── main.py              CLI 진입점
-├── config.example.yaml      설정 예시 (수동 작성용)
-└── install.sh               슬래시 커맨드 등록 (선택)
+│   ├── progress.py          progress-log section
+│   ├── clipboard.py         clipboard URL extraction
+│   ├── config.py            settings + init wizard
+│   └── main.py              CLI entry point
+├── config.example.yaml      example config (for manual setup)
+└── install.sh               register slash commands (optional)
 ```
 
-## 문제 해결
+## Troubleshooting
 
-- `nacho: command not found` — `~/.local/bin/nacho` 심볼릭 링크 안 됐거나 PATH 에 `~/.local/bin` 없음
-- `설정 파일이 없습니다` — `nacho init` 먼저
-- `credentials 없음` — 같음
-- `400 ... validation error` — DB schema 옵션과 안 맞는 값. `~/.config/nacho/config.yaml` 의 `fields` 매핑 확인, 또는 `nacho init --force` 로 재셋업
-- `401 unauthorized` — token 만료/잘못됨. `nacho init --force` 로 재입력
-- `404 ... database not found` — Integration 이 그 DB 에 권한 없음. DB 페이지 ... → Connections 에 Integration 추가
+- `nacho: command not found` — the `~/.local/bin/nacho` symlink isn't set, or `~/.local/bin` isn't on PATH.
+- `설정 파일이 없습니다` (no config file) — run `nacho init` first.
+- `credentials 없음` (no credentials) — same.
+- `400 ... validation error` — a value that doesn't match the DB schema options. Check the `fields` mapping in `~/.config/nacho/config.yaml`, or re-setup with `nacho init --force`.
+- `401 unauthorized` — token expired/wrong. Re-enter with `nacho init --force`.
+- `404 ... database not found` — the Integration lacks access to that DB. Add the Integration under the DB page's ... → Connections.
