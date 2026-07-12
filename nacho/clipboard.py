@@ -1,7 +1,8 @@
-"""클립보드 헬퍼 — macOS pbpaste / Linux xclip|xsel.
+"""클립보드 헬퍼 — macOS pbpaste·pbcopy / Linux xclip|xsel.
 
-용도: tako 가 새 Jira 티켓 만들면 URL 을 시스템 클립보드에 자동 복사한다.
+읽기 용도: tako 가 새 Jira 티켓 만들면 URL 을 시스템 클립보드에 자동 복사한다.
 nacho 는 그 직후 호출되면 클립보드에서 그 URL 을 읽어 노션 행의 `링크` 필드에 자동 연결.
+쓰기 용도: nacho new 가 생성한 노션 행 URL 을 클립보드에 복사.
 """
 import re
 import subprocess
@@ -37,6 +38,23 @@ def read_clipboard() -> str:
         return ""
     except (subprocess.SubprocessError, OSError):
         return ""
+
+
+def copy_to_clipboard(text: str) -> bool:
+    """텍스트를 시스템 클립보드에 복사. 성공하면 True, 도구 없거나 실패면 False."""
+    if sys.platform == "darwin":
+        commands = (["pbcopy"],)
+    else:
+        # Linux: xclip → xsel 순서로 시도
+        commands = (["xclip", "-selection", "clipboard"], ["xsel", "-b", "-i"])
+    for cmd in commands:
+        try:
+            r = subprocess.run(cmd, input=text.encode(), timeout=2, check=False)
+            if r.returncode == 0:
+                return True
+        except (FileNotFoundError, subprocess.SubprocessError, OSError):
+            continue
+    return False
 
 
 def find_url_in_clipboard() -> str | None:

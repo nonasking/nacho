@@ -166,7 +166,7 @@ nacho/
 │   ├── schema.py            DB schema option extraction
 │   ├── session.py           Claude session id
 │   ├── progress.py          progress-log section
-│   ├── clipboard.py         clipboard URL extraction
+│   ├── clipboard.py         clipboard read (URL extraction) / copy
 │   ├── config.py            settings + init wizard
 │   └── main.py              CLI entry point
 ├── config.example.yaml      example config (for manual setup)

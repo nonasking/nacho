@@ -4,7 +4,6 @@ import getpass
 import json
 import os
 import re
-import subprocess
 import sys
 
 from datetime import date, timedelta
@@ -15,6 +14,7 @@ from . import page_draft as pd
 from . import progress as prog
 from . import prompts
 from .auth import CREDS_PATH
+from .clipboard import copy_to_clipboard
 from .config import CONFIG_PATH, load_config, write_default
 
 
@@ -31,16 +31,6 @@ FIELD_SPEC = [
     ("session_id", "rich_text", ["session", "세션"]),
     ("status_note", "rich_text", ["현황", "status note", "summary", "note"]),
 ]
-
-
-def _copy_to_clipboard(text: str) -> None:
-    try:
-        if sys.platform == "darwin":
-            subprocess.run(["pbcopy"], input=text.encode(), check=False)
-        else:
-            subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode(), check=False)
-    except FileNotFoundError:
-        pass
 
 
 def cmd_new(args) -> int:
@@ -70,8 +60,8 @@ def cmd_new(args) -> int:
     url = result.get("url", "")
     print(f"✓ 생성됨: {url}")
     if cfg.get("auto_copy_url", True) and url:
-        _copy_to_clipboard(url)
-        print("  (URL 클립보드에 복사)")
+        if copy_to_clipboard(url):
+            print("  (URL 클립보드에 복사)")
     return 0
 
 
@@ -165,7 +155,8 @@ def cmd_note(args) -> int:
 
     entry_text = prog.format_entry_text(args.note)
 
-    # 1) 본문에 bullet append (페이지 맨 끝)
+    # 1) 본문 '## 진행 일지' 섹션 끝에 bullet 삽입 (섹션 없으면 페이지 맨 끝)
+    anchor = prog.find_append_anchor(nc.get_block_children(page_id))
     nc.append_block_children(
         page_id,
         [{
@@ -175,6 +166,7 @@ def cmd_note(args) -> int:
                 "rich_text": [{"type": "text", "text": {"content": entry_text}}]
             },
         }],
+        after=anchor,
     )
 
     # 2) '현황 요약' 필드 덮어쓰기
@@ -315,29 +307,9 @@ def cmd_resume(args) -> int:
         print("config 에 fields.session_id 매핑이 없음.")
         return 1
 
-    filter_ = {"property": f["title"], "title": {"contains": args.query}}
-    pages = nc.query_database(n["database_id"], filter_=filter_)
-
-    if not pages:
-        print(f"매칭 없음: '{args.query}'")
+    page = _pick_page_by_title(args.query, n["database_id"], f["title"])
+    if not page:
         return 1
-
-    if len(pages) > 1:
-        print(f"{len(pages)}개 매칭:")
-        for i, p in enumerate(pages, 1):
-            tf = p["properties"].get(f["title"], {}).get("title", [])
-            title = tf[0]["plain_text"] if tf else "(제목 없음)"
-            print(f"  {i}) {title}")
-        try:
-            idx = int(input("번호: ").strip()) - 1
-        except (ValueError, KeyboardInterrupt):
-            return 1
-        if not (0 <= idx < len(pages)):
-            print("범위 밖.")
-            return 1
-        page = pages[idx]
-    else:
-        page = pages[0]
 
     sid_field = page["properties"].get(sid_key, {}).get("rich_text", [])
     if not sid_field:
@@ -346,7 +318,6 @@ def cmd_resume(args) -> int:
     session_id = sid_field[0]["plain_text"]
 
     if args.exec:
-        import os
         os.execvp("claude", ["claude", "--resume", session_id])
     else:
         print(f"claude --resume {session_id}")
@@ -572,7 +543,12 @@ def run() -> None:
     if not args.cmd:
         parser.print_help()
         return
-    sys.exit(args.func(args) or 0)
+    try:
+        rc = args.func(args) or 0
+    except nc.NotionApiError as e:
+        print(f"오류: {e}", file=sys.stderr)
+        rc = 1
+    sys.exit(rc)
 
 
 if __name__ == "__main__":
