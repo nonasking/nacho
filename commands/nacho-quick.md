@@ -26,7 +26,9 @@ description: 노션 DB 에 새 행 추가 — 본문 자동 작성 X (사용자 
    - **본문** — 사용자가 "본문: ..." 또는 `--body` 로 명시했을 때만. 그 외엔 **빈 본문**
 2. 미리보기를 채팅에 한 번 출력 (어떤 인자로 호출할지)
 3. 사용자 확인 (`OK` / `수정해줘` / `취소`)
-4. OK 면 `nacho new --yes ...` 실행. `--session-id` 는 명시 안 함 (nacho 가 알아서 hook 파일 읽음)
+4. OK 면 `nacho new --yes --no-prompt --require-session ...` 실행.
+   - `--no-prompt`: 대화형 질문 없이, **명시한 인자만 채우고 나머지는 빈 필드**
+   - `--require-session`: session_id 필수 — Claude Code 세션 밖이면 에러 (정상). `--session-id` 는 명시 안 함 (nacho 가 hook 파일에서 읽음)
 
 ## 사용 예
 

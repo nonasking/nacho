@@ -58,6 +58,12 @@ class PickPageByTitleTest(unittest.TestCase):
                 mock.patch("builtins.input", side_effect=AssertionError("input 호출 금지")):
             self.assertIs(main._pick_page_by_title("큐레", "db", "이름"), page)
 
+    def setUp(self):
+        # 기본은 대화형 터미널로 가정한다. 비대화형 경로는 따로 테스트한다.
+        patcher = mock.patch.object(main.sys.stdin, "isatty", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_multiple_matches_prompts_for_number(self):
         pages = [_page("a"), _page("b"), _page("c")]
         with mock.patch.object(main.nc, "query_database", return_value=pages), \
@@ -71,6 +77,20 @@ class PickPageByTitleTest(unittest.TestCase):
                 self.assertIsNone(main._pick_page_by_title("q", "db", "이름"))
             with mock.patch("builtins.input", return_value="9"):
                 self.assertIsNone(main._pick_page_by_title("q", "db", "이름"))
+
+
+    def test_eof_on_prompt_returns_none(self):
+        pages = [_page("a"), _page("b")]
+        with mock.patch.object(main.nc, "query_database", return_value=pages), \
+                mock.patch("builtins.input", side_effect=EOFError):
+            self.assertIsNone(main._pick_page_by_title("q", "db", "이름"))
+
+    def test_non_interactive_multiple_matches_does_not_prompt(self):
+        pages = [_page("a"), _page("b")]
+        with mock.patch.object(main.nc, "query_database", return_value=pages), \
+                mock.patch.object(main.sys.stdin, "isatty", return_value=False), \
+                mock.patch("builtins.input", side_effect=AssertionError("input 호출 금지")):
+            self.assertIsNone(main._pick_page_by_title("q", "db", "이름"))
 
 
 if __name__ == "__main__":

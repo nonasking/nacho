@@ -53,9 +53,13 @@ def cmd_new(args) -> int:
 
     properties = pd.build_properties(n["fields"], data)
     children = pd.build_body_blocks(data.get("body"))
+    # 한 요청에 children은 100개까지라 첫 묶음만 생성 때 보내고 나머지는 이어 붙인다.
+    batches = pd.chunk_blocks(children)
     result = nc.create_page(
-        n["database_id"], properties, children=children if children else None
+        n["database_id"], properties, children=batches[0] if batches else None
     )
+    for batch in batches[1:]:
+        nc.append_block_children(result["id"], batch)
 
     url = result.get("url", "")
     print(f"✓ 생성됨: {url}")
@@ -128,9 +132,13 @@ def _pick_page_by_title(query: str, db_id: str, title_field: str) -> dict | None
         tf = p["properties"].get(title_field, {}).get("title", [])
         title = tf[0]["plain_text"] if tf else "(제목 없음)"
         print(f"  {i}) {title}")
+    if not sys.stdin.isatty():
+        # 비대화형(다른 도구가 subprocess로 호출)에서는 고를 수 없으니 더 좁혀 달라고 한다.
+        print("여러 개가 매칭되어 고를 수 없습니다. 검색어를 더 구체적으로 주세요.", file=sys.stderr)
+        return None
     try:
         idx = int(input("번호: ").strip()) - 1
-    except (ValueError, KeyboardInterrupt):
+    except (ValueError, KeyboardInterrupt, EOFError):
         return None
     if not (0 <= idx < len(pages)):
         print("범위 밖.")
@@ -493,6 +501,14 @@ def run() -> None:
     p_new.add_argument("--body")
     p_new.add_argument("--session-id", dest="session_id",
                        help="Claude 세션 ID (지정 안 하면 SessionStart hook 파일에서 자동)")
+    p_new.add_argument(
+        "--no-prompt", dest="no_prompt", action="store_true",
+        help="대화형 프롬프트 끄기 — 안 준 인자는 빈 필드로 생성 (제목만 필수)",
+    )
+    p_new.add_argument(
+        "--require-session", dest="require_session", action="store_true",
+        help="session_id 필수화 — 못 찾으면 에러 (Claude Code 경로용)",
+    )
     p_new.add_argument("--yes", "-y", action="store_true")
     p_new.set_defaults(func=cmd_new)
 
@@ -548,6 +564,13 @@ def run() -> None:
     except nc.NotionApiError as e:
         print(f"오류: {e}", file=sys.stderr)
         rc = 1
+    except (ValueError, FileNotFoundError) as e:
+        # 설정 누락·잘못된 인자 등은 traceback 대신 한 줄로 알린다.
+        print(f"오류: {e}", file=sys.stderr)
+        rc = 1
+    except (EOFError, KeyboardInterrupt):
+        print("\n취소됨.", file=sys.stderr)
+        rc = 130
     sys.exit(rc)
 
 

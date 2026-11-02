@@ -66,6 +66,8 @@ nacho new \
 - Option values only accept the actual options from the DB schema (free-form input is rejected).
 - `--link auto` → extracts a URL from the system clipboard automatically.
 - When `--session-id` is omitted, it's read from `~/.cache/nacho/current-session` automatically (requires the Claude Code SessionStart hook — see below).
+- `--no-prompt` turns off the interactive questions: anything you didn't pass is left empty, and only `--title` is required. Use it whenever nacho runs non-interactively (slash commands, other tools calling it via subprocess).
+- `--require-session` fails instead of creating a row when no session ID can be resolved. The `/nacho` and `/nacho-quick` slash commands pass both flags.
 
 ### List rows
 
