@@ -35,6 +35,19 @@ def build_properties(fields_cfg: dict, data: dict) -> dict:
     return props
 
 
+# Notion API 제한: text.content는 2000자까지, 한 요청의 children은 100개까지.
+RICH_TEXT_MAX_CHARS = 2000
+MAX_CHILDREN_PER_REQUEST = 100
+
+
+def _rich_text(line: str) -> list:
+    """한 줄을 2000자 이하 조각들의 rich_text 배열로."""
+    return [
+        {"type": "text", "text": {"content": line[i:i + RICH_TEXT_MAX_CHARS]}}
+        for i in range(0, len(line), RICH_TEXT_MAX_CHARS)
+    ]
+
+
 def build_body_blocks(markdown: str | None) -> list:
     """간단 변환 — 줄 단위로 paragraph 블록 (v1)."""
     if not markdown:
@@ -44,11 +57,14 @@ def build_body_blocks(markdown: str | None) -> list:
         blocks.append({
             "object": "block",
             "type": "paragraph",
-            "paragraph": {
-                "rich_text": [{"type": "text", "text": {"content": line}}] if line else []
-            },
+            "paragraph": {"rich_text": _rich_text(line)},
         })
     return blocks
+
+
+def chunk_blocks(blocks: list, size: int = MAX_CHILDREN_PER_REQUEST) -> list[list]:
+    """children을 요청당 한도 이하 묶음으로 나눈다."""
+    return [blocks[i:i + size] for i in range(0, len(blocks), size)]
 
 
 def format_preview(data: dict) -> str:
